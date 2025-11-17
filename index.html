@@ -112,6 +112,13 @@
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
         }
 
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         /* Модальное окно */
         .modal {
             display: none;
@@ -245,6 +252,27 @@
             border: 1px solid #f5c6cb;
         }
 
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2575fc;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         footer {
             text-align: center;
             margin-top: 40px;
@@ -334,7 +362,7 @@
         </div>
 
         <footer>
-            <p>© Сотников Александр 2025 | Разработка пользовательского Web-интерфейса</p>
+            <p>© Сергей Синица 2025 | Разработка пользовательского Web-интерфейса</p>
         </footer>
     </div>
 
@@ -376,9 +404,14 @@
                         <label for="policy">Я согласен с политикой обработки персональных данных *</label>
                     </div>
                     
+                    <div class="loading" id="loadingIndicator">
+                        <div class="spinner"></div>
+                        <p>Отправка данных...</p>
+                    </div>
+                    
                     <div class="form-actions">
                         <button type="button" id="closeForm" class="btn btn-secondary">Закрыть</button>
-                        <button type="submit" class="btn">Отправить</button>
+                        <button type="submit" class="btn" id="submitBtn">Отправить</button>
                     </div>
                 </form>
                 
@@ -395,9 +428,14 @@
             const modal = document.getElementById('feedbackModal');
             const form = document.getElementById('feedbackForm');
             const messageContainer = document.getElementById('messageContainer');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const submitBtn = document.getElementById('submitBtn');
             
             // Ключ для LocalStorage
             const STORAGE_KEY = 'feedbackFormData';
+            
+            // Formcarry настройки
+            const FORMCARRY_URL = 'https://formcarry.com/s/Q2UnlZBJXdg';
             
             // Открытие формы
             openFormBtn.addEventListener('click', function() {
@@ -473,7 +511,7 @@
             form.addEventListener('change', saveFormData);
             
             // Отправка формы
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
                 // Проверка согласия с политикой
@@ -482,34 +520,62 @@
                     return;
                 }
                 
-                // Сбор данных формы
-                const formData = new FormData(form);
-                const data = {
-                    fullName: formData.get('fullName'),
-                    email: formData.get('email'),
-                    phone: formData.get('phone'),
-                    organization: formData.get('organization'),
-                    message: formData.get('message')
-                };
+                // Показать индикатор загрузки
+                loadingIndicator.style.display = 'block';
+                submitBtn.disabled = true;
                 
-                // Отправка данных на сервер (заглушка)
-                // В реальном приложении здесь будет fetch запрос к серверу
-                // Например, используя formcarry.com или slapform.com
-                
-                // Имитация отправки
-                setTimeout(function() {
-                    // Очистка данных формы и LocalStorage
-                    form.reset();
-                    clearFormData();
+                try {
+                    // Отправка данных на Formcarry
+                    const response = await fetch(FORMCARRY_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            fullName: document.getElementById('fullName').value,
+                            email: document.getElementById('email').value,
+                            phone: document.getElementById('phone').value,
+                            organization: document.getElementById('organization').value,
+                            message: document.getElementById('message').value
+                        })
+                    });
                     
-                    // Показать сообщение об успехе
-                    showMessage('Ваше сообщение успешно отправлено! Мы свяжемся с вами в ближайшее время.', 'success');
+                    const result = await response.json();
                     
-                    // Закрыть форму через 3 секунды
-                    setTimeout(function() {
-                        closeModal();
-                    }, 3000);
-                }, 1000);
+                    if (response.ok && result.code === 200) {
+                        // Успешная отправка
+                        showMessage('Ваше сообщение успешно отправлено! Мы свяжемся с вами в ближайшее время.', 'success');
+                        
+                        // Очистка данных формы и LocalStorage
+                        form.reset();
+                        clearFormData();
+                        
+                        // Закрыть форму через 3 секунды
+                        setTimeout(function() {
+                            closeModal();
+                        }, 3000);
+                    } else {
+                        // Ошибка отправки
+                        let errorMessage = 'Произошла ошибка при отправке формы. ';
+                        
+                        if (result.message) {
+                            errorMessage += result.message;
+                        } else if (result.errors) {
+                            errorMessage += Object.values(result.errors).join(', ');
+                        }
+                        
+                        showMessage(errorMessage, 'error');
+                    }
+                } catch (error) {
+                    // Ошибка сети или другая ошибка
+                    console.error('Ошибка отправки формы:', error);
+                    showMessage('Произошла ошибка при отправке формы. Пожалуйста, попробуйте еще раз.', 'error');
+                } finally {
+                    // Скрыть индикатор загрузки
+                    loadingIndicator.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
             });
             
             // Функция показа сообщений
